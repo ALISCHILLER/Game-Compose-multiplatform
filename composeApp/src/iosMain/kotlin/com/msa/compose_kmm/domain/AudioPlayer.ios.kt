@@ -1,87 +1,108 @@
 package com.msa.compose_kmm.domain
 
-
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
-import platform.AVFAudio.AVAudioSessionCategoryPlayback
+import platform.AVFAudio.AVAudioSessionCategoryAmbient
 import platform.AVFAudio.setActive
 import platform.Foundation.NSBundle
 import platform.Foundation.NSURL
 import platform.Foundation.NSURL.Companion.fileURLWithPath
 
+/**
+ * پیاده‌سازی iOS برای صدای بازی با AVAudioPlayer.
+ *
+ * نکته:
+ * در Kotlin/Native بعضی propertyهای iOS مثل numberOfLoops با نوع Long map می‌شوند.
+ * بنابراین مقدار loop باید Long باشد، نه Int.
+ */
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 @OptIn(ExperimentalForeignApi::class)
 actual class AudioPlayer {
-    private var audioPlayers: MutableMap<String, AVAudioPlayer?> =
-        mutableMapOf()
+
+    private val audioPlayers = mutableMapOf<String, AVAudioPlayer?>()
     private var fallingSoundPlayer: AVAudioPlayer? = null
 
     init {
-        // Configure the audio session for playback.
         val session = AVAudioSession.sharedInstance()
-        session.setCategory(AVAudioSessionCategoryPlayback, error = null)
+        session.setCategory(AVAudioSessionCategoryAmbient, error = null)
         session.setActive(true, error = null)
     }
 
     actual fun playGameOverSound() {
-        stopFallingSound() // Stop any ongoing falling sound before playing the game over sound.
-        playSound("game_over")
+        stopFallingSound()
+        playSound(soundName = "game_over")
     }
 
     actual fun playJumpSound() {
-        stopFallingSound() // Stop any ongoing falling sound before playing the jump sound.
-        playSound("jump")
+        stopFallingSound()
+        playSound(soundName = "jump")
     }
 
     actual fun playFallingSound() {
-        // Start playing the falling sound and keep a reference for stopping later.
-        fallingSoundPlayer = playSound("falling")
+        if (fallingSoundPlayer != null) return
+        fallingSoundPlayer = playSound(soundName = "falling")
     }
 
     actual fun stopFallingSound() {
-        // Stop the falling sound if it's playing.
         fallingSoundPlayer?.stop()
         fallingSoundPlayer = null
     }
 
     actual fun playGameSoundInLoop() {
-        // Get the sound URL and create an AVAudioPlayer instance that loops indefinitely.
-        val url = getSoundURL("game_sound")
-        val player = url?.let { AVAudioPlayer(it, null) }
-        player?.numberOfLoops = -1 // Loop indefinitely
-        player?.prepareToPlay()
-        player?.play()
-        audioPlayers["game_sound"] = player
+        audioPlayers[GAME_SOUND_KEY]?.let { existingPlayer ->
+            existingPlayer.play()
+            return
+        }
+
+        val player = createPlayer(resourceName = GAME_SOUND_KEY)?.apply {
+            numberOfLoops = LOOP_FOREVER
+            prepareToPlay()
+            play()
+        }
+
+        audioPlayers[GAME_SOUND_KEY] = player
     }
 
     actual fun stopGameSound() {
-        playGameOverSound()
-        // Stop the looping game sound and remove it from the audio players map.
-        audioPlayers["game_sound"]?.stop()
-        audioPlayers["game_sound"] = null
+        audioPlayers[GAME_SOUND_KEY]?.stop()
+        audioPlayers[GAME_SOUND_KEY] = null
     }
 
     actual fun release() {
-        // Stop all audio players and clear references to free resources.
         audioPlayers.values.forEach { it?.stop() }
         audioPlayers.clear()
-        fallingSoundPlayer?.stop()
-        fallingSoundPlayer = null
+        stopFallingSound()
     }
 
     private fun playSound(soundName: String): AVAudioPlayer? {
-        val url = getSoundURL(soundName)
-        val player = url?.let { AVAudioPlayer(it, error = null) }
-        player?.prepareToPlay()
-        player?.play()
-        audioPlayers[soundName] = player // Store the player for future management.
+        val player = createPlayer(resourceName = soundName)?.apply {
+            prepareToPlay()
+            play()
+        }
+
+        audioPlayers[soundName] = player
         return player
     }
 
+    private fun createPlayer(resourceName: String): AVAudioPlayer? {
+        val url = getSoundURL(resourceName) ?: return null
+        return AVAudioPlayer(url, error = null)
+    }
+
     private fun getSoundURL(resourceName: String): NSURL? {
-        val bundle = NSBundle.mainBundle()
-        val path = bundle.pathForResource(resourceName, "wav")
+        val path = NSBundle.mainBundle().pathForResource(resourceName, "wav")
         return path?.let { fileURLWithPath(it) }
+    }
+
+    private companion object {
+        const val GAME_SOUND_KEY = "game_sound"
+
+        /**
+         * مقدار -1 یعنی loop بی‌نهایت در AVAudioPlayer.
+         *
+         * نوع باید Long باشد، چون numberOfLoops در Kotlin/Native Long است.
+         */
+        const val LOOP_FOREVER: Long = -1L
     }
 }

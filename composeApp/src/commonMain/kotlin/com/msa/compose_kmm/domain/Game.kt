@@ -6,56 +6,108 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlin.random.Random
 
-class Game {
+/**
+ * موتور اصلی بازی.
+ *
+ * این کلاس مستقل از UI طراحی شده است.
+ * یعنی Canvas، دکمه، تصویر، صدا و Compose نباید داخل منطق بازی باشند.
+ *
+ * وظایف این کلاس:
+ * - نگهداری state بازی
+ * - فیزیک زنبور
+ * - تولید و حرکت لوله‌ها
+ * - امتیازدهی
+ * - تشخیص برخورد
+ * - مدیریت شروع/پایان/ریست بازی
+ *
+ * @param random برای تولید لوله‌ها استفاده می‌شود. تزریق‌پذیر است تا تست‌پذیری بهتر شود.
+ */
+class Game(
+    private val random: Random = Random.Default
+) {
 
+    /** عرض فعلی Canvas. */
     var screenWidth by mutableIntStateOf(0)
         private set
 
+    /** ارتفاع فعلی Canvas. */
     var screenHeight by mutableIntStateOf(0)
         private set
 
+    /** وضعیت فعلی بازی. */
     var status by mutableStateOf(GameStatus.Idle)
         private set
 
+    /** امتیاز دور فعلی. */
     var score by mutableIntStateOf(0)
         private set
 
+    /** بهترین امتیاز تا زمانی که برنامه باز است. */
     var bestScore by mutableIntStateOf(0)
         private set
 
+    /** سرعت عمودی زنبور. مقدار منفی یعنی حرکت به سمت بالا. */
     var beeVelocity by mutableStateOf(0f)
         private set
 
+    /** مدل فعلی زنبور. */
     var bee by mutableStateOf(Bee(x = 0f, y = 0f))
         private set
 
+    /** لیست لوله‌های فعال داخل world بازی. */
     var pipePairs by mutableStateOf(emptyList<PipePair>())
         private set
 
+    /** ارتفاع زمین پایین صفحه. */
     val groundHeight: Float
-        get() = (screenHeight * 0.16f).coerceIn(104f, 168f)
+        get() = (screenHeight * GameConfig.GROUND_HEIGHT_RATIO)
+            .coerceIn(GameConfig.MIN_GROUND_HEIGHT, GameConfig.MAX_GROUND_HEIGHT)
 
+    /** سقف سرعت زنبور برای جلوگیری از رفتار شدید در افت فریم. */
     val beeMaxVelocity: Float
-        get() = (screenHeight * 0.018f).coerceIn(11.5f, 16.5f)
+        get() = (screenHeight * GameConfig.MAX_VELOCITY_RATIO)
+            .coerceIn(GameConfig.MIN_MAX_VELOCITY, GameConfig.MAX_MAX_VELOCITY)
 
+    /** فاصله بین لوله بالا و پایین. */
     val pipeGapSize: Float
-        get() = (screenHeight * 0.285f).coerceIn(210f, 296f)
+        get() = (screenHeight * GameConfig.PIPE_GAP_RATIO)
+            .coerceIn(GameConfig.MIN_PIPE_GAP, GameConfig.MAX_PIPE_GAP)
 
+    /** عرض لوله‌ها. */
     val pipeWidth: Float
-        get() = (screenWidth * 0.145f).coerceIn(76f, 118f)
+        get() = (screenWidth * GameConfig.PIPE_WIDTH_RATIO)
+            .coerceIn(GameConfig.MIN_PIPE_WIDTH, GameConfig.MAX_PIPE_WIDTH)
 
+    /** فاصله افقی بین جفت لوله‌ها. */
     private val pipeSpacing: Float
-        get() = (screenWidth * 0.52f).coerceIn(300f, 430f)
+        get() = (screenWidth * GameConfig.PIPE_SPACING_RATIO)
+            .coerceIn(GameConfig.MIN_PIPE_SPACING, GameConfig.MAX_PIPE_SPACING)
 
+    /** گرانش بازی. */
     private val gravity: Float
-        get() = (screenHeight * 0.00078f).coerceIn(0.48f, 0.68f)
+        get() = (screenHeight * GameConfig.GRAVITY_RATIO)
+            .coerceIn(GameConfig.MIN_GRAVITY, GameConfig.MAX_GRAVITY)
 
+    /** نیروی پرش. مقدار منفی است چون محور y به سمت پایین زیاد می‌شود. */
     private val jumpImpulse: Float
-        get() = -(screenHeight * 0.0142f).coerceIn(8.6f, 12.4f)
+        get() = -(screenHeight * GameConfig.JUMP_IMPULSE_RATIO)
+            .coerceIn(GameConfig.MIN_JUMP_IMPULSE, GameConfig.MAX_JUMP_IMPULSE)
 
+    /** سرعت حرکت لوله‌ها. */
     private val pipeSpeed: Float
-        get() = (screenWidth * 0.0082f).coerceIn(4.2f, 6.7f)
+        get() = (screenWidth * GameConfig.PIPE_SPEED_RATIO)
+            .coerceIn(GameConfig.MIN_PIPE_SPEED, GameConfig.MAX_PIPE_SPEED)
 
+    /** آیا بازی آماده دریافت دستور پرش است؟ */
+    val canReceiveJump: Boolean
+        get() = status == GameStatus.Idle || status == GameStatus.Started
+
+    /**
+     * به‌روزرسانی اندازه صفحه.
+     *
+     * در Compose اندازه Canvas بعد از composition مشخص می‌شود.
+     * برای همین world بازی فقط وقتی ساخته می‌شود که width/height معتبر داشته باشیم.
+     */
     fun updateBounds(width: Int, height: Int) {
         if (width <= 0 || height <= 0) return
 
@@ -64,13 +116,16 @@ class Game {
 
         screenWidth = width
         screenHeight = height
+
         resetWorld()
 
+        // اگر وسط بازی ابعاد تغییر کرد، بازی را به حالت آماده برمی‌گردانیم.
         if (status == GameStatus.Started) {
             status = GameStatus.Idle
         }
     }
 
+    /** شروع بازی. */
     fun start() {
         if (screenWidth <= 0 || screenHeight <= 0) return
 
@@ -78,21 +133,33 @@ class Game {
         status = GameStatus.Started
     }
 
+    /** شروع مجدد بازی بعد از Game Over. */
     fun restart() {
         start()
     }
 
+    /**
+     * پرش زنبور.
+     *
+     * فقط زمانی اثر دارد که بازی Started باشد.
+     */
     fun jump() {
         if (status != GameStatus.Started) return
 
         beeVelocity = jumpImpulse
     }
 
+    /**
+     * update اصلی world بازی.
+     *
+     * @param deltaMillis زمان سپری‌شده از فریم قبل
+     */
     fun update(deltaMillis: Long) {
         if (status != GameStatus.Started) return
         if (screenWidth <= 0 || screenHeight <= 0) return
 
-        val step = (deltaMillis / 16.6667f).coerceIn(0.5f, 1.8f)
+        val step = (deltaMillis / GameConfig.FRAME_TIME_60_FPS)
+            .coerceIn(GameConfig.MIN_FRAME_STEP, GameConfig.MAX_FRAME_STEP)
 
         updateBee(step)
         updatePipes(step)
@@ -100,54 +167,65 @@ class Game {
         checkCollisions()
     }
 
+    /** ساخت world اولیه. */
     private fun resetWorld() {
         score = 0
         beeVelocity = 0f
 
-        val radius = (screenWidth * 0.052f).coerceIn(24f, 34f)
+        val radius = (screenWidth * GameConfig.BEE_RADIUS_RATIO)
+            .coerceIn(GameConfig.MIN_BEE_RADIUS, GameConfig.MAX_BEE_RADIUS)
 
         bee = Bee(
-            x = screenWidth * 0.28f,
-            y = screenHeight * 0.42f,
+            x = screenWidth * GameConfig.BEE_START_X_RATIO,
+            y = screenHeight * GameConfig.BEE_START_Y_RATIO,
             radius = radius
         )
 
         pipePairs = createInitialPipes()
     }
 
+    /** اعمال گرانش و سرعت روی زنبور. */
     private fun updateBee(step: Float) {
         beeVelocity = (beeVelocity + gravity * step)
             .coerceIn(-beeMaxVelocity, beeMaxVelocity)
 
         bee = bee.copy(y = bee.y + beeVelocity * step)
 
+        // برخورد با سقف Game Over نیست؛ فقط زنبور را نگه می‌داریم.
         if (bee.y - bee.radius <= 0f) {
             bee = bee.copy(y = bee.radius)
             beeVelocity = 0f
         }
     }
 
+    /** تولید لوله‌های اولیه. */
     private fun createInitialPipes(): List<PipePair> {
-        val startX = screenWidth + pipeSpacing * 0.65f
+        val startX = screenWidth + pipeSpacing * GameConfig.FIRST_PIPE_OFFSET_RATIO
 
-        return List(3) { index ->
+        return List(GameConfig.INITIAL_PIPE_COUNT) { index ->
             createPipe(x = startX + index * pipeSpacing)
         }
     }
 
+    /** تولید یک جفت لوله با gap کنترل‌شده. */
     private fun createPipe(x: Float): PipePair {
         val playableBottom = (screenHeight - groundHeight).coerceAtLeast(1f)
-        val safeTopMargin = (playableBottom * 0.14f).coerceIn(76f, 132f)
-        val safeBottomMargin = (playableBottom * 0.12f).coerceIn(70f, 126f)
+
+        val safeTopMargin = (playableBottom * GameConfig.TOP_SAFE_MARGIN_RATIO)
+            .coerceIn(GameConfig.MIN_TOP_SAFE_MARGIN, GameConfig.MAX_TOP_SAFE_MARGIN)
+
+        val safeBottomMargin = (playableBottom * GameConfig.BOTTOM_SAFE_MARGIN_RATIO)
+            .coerceIn(GameConfig.MIN_BOTTOM_SAFE_MARGIN, GameConfig.MAX_BOTTOM_SAFE_MARGIN)
 
         val minTopHeight = safeTopMargin
+
         val maxTopHeight = (playableBottom - safeBottomMargin - pipeGapSize)
             .coerceAtLeast(minTopHeight + 1f)
 
         val topHeight = if (maxTopHeight <= minTopHeight) {
             (playableBottom * 0.34f).coerceAtLeast(minTopHeight)
         } else {
-            minTopHeight + (maxTopHeight - minTopHeight) * Random.nextFloat()
+            minTopHeight + (maxTopHeight - minTopHeight) * random.nextFloat()
         }
 
         return PipePair(
@@ -158,6 +236,7 @@ class Game {
         )
     }
 
+    /** حرکت لوله‌ها و تولید لوله جدید. */
     private fun updatePipes(step: Float) {
         val movedPipes = pipePairs
             .map { pipe -> pipe.copy(x = pipe.x - pipeSpeed * step) }
@@ -177,17 +256,14 @@ class Game {
         pipePairs = movedPipes
     }
 
+    /** ثبت امتیاز بعد از عبور کامل از لوله. */
     private fun updateScore() {
         pipePairs = pipePairs.map { pipe ->
             val rightEdge = pipe.x + pipe.width / 2f
 
             if (!pipe.scored && bee.x > rightEdge) {
                 score += 1
-
-                if (score > bestScore) {
-                    bestScore = score
-                }
-
+                bestScore = maxOf(bestScore, score)
                 pipe.copy(scored = true)
             } else {
                 pipe
@@ -195,8 +271,10 @@ class Game {
         }
     }
 
+    /** بررسی برخورد با زمین و لوله‌ها. */
     private fun checkCollisions() {
         val floorY = screenHeight - groundHeight
+        val beeBounds = bee.toCollisionBounds()
 
         if (bee.y + bee.radius >= floorY) {
             bee = bee.copy(y = floorY - bee.radius)
@@ -204,20 +282,12 @@ class Game {
             return
         }
 
-        val horizontalRadius = bee.radius * 0.66f
-        val verticalRadius = bee.radius * 0.70f
-
-        val beeLeft = bee.x - horizontalRadius
-        val beeRight = bee.x + horizontalRadius
-        val beeTop = bee.y - verticalRadius
-        val beeBottom = bee.y + verticalRadius
-
         pipePairs.forEach { pipe ->
             val pipeLeft = pipe.x - pipe.width / 2f
             val pipeRight = pipe.x + pipe.width / 2f
 
-            val overlapX = beeRight >= pipeLeft && beeLeft <= pipeRight
-            val hitPipe = beeTop <= pipe.topHeight || beeBottom >= pipe.gapBottom
+            val overlapX = beeBounds.right >= pipeLeft && beeBounds.left <= pipeRight
+            val hitPipe = beeBounds.top <= pipe.topHeight || beeBounds.bottom >= pipe.gapBottom
 
             if (overlapX && hitPipe) {
                 gameOver()
@@ -226,11 +296,9 @@ class Game {
         }
     }
 
+    /** پایان بازی. */
     private fun gameOver() {
         status = GameStatus.Over
-
-        if (score > bestScore) {
-            bestScore = score
-        }
+        bestScore = maxOf(bestScore, score)
     }
 }

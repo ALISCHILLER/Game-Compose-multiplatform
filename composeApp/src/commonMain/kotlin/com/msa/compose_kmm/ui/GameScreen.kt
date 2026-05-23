@@ -30,6 +30,14 @@ import compose_kmm.composeapp.generated.resources.background
 import compose_kmm.composeapp.generated.resources.moving_background
 import org.jetbrains.compose.resources.painterResource
 
+/**
+ * پس‌زمینه بازی.
+ *
+ * شامل:
+ * - تصویر اصلی background
+ * - یک لایه سایه برای خوانایی بهتر UI
+ * - زمین متحرک پایین صفحه
+ */
 @Composable
 fun GameBackground(
     isRunning: Boolean,

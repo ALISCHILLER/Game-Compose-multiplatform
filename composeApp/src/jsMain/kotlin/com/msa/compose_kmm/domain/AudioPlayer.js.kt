@@ -1,9 +1,16 @@
 package com.msa.compose_kmm.domain
 
+import compose_kmm.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.w3c.dom.Audio
 
+/**
+ * پیاده‌سازی Web/JS برای صدا با HTMLAudioElement.
+ */
+@OptIn(ExperimentalResourceApi::class)
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 actual class AudioPlayer {
+
     private val audioElements = mutableMapOf<String, Audio>()
 
     actual fun playGameOverSound() {
@@ -13,7 +20,7 @@ actual class AudioPlayer {
 
     actual fun playJumpSound() {
         stopFallingSound()
-        playSound(fileName = "jump.wav")
+        playSound(fileName = "jump.wav", restart = true)
     }
 
     actual fun playFallingSound() {
@@ -29,7 +36,6 @@ actual class AudioPlayer {
     }
 
     actual fun stopGameSound() {
-        playGameOverSound()
         stopSound(fileName = "game_sound.wav")
     }
 
@@ -40,15 +46,22 @@ actual class AudioPlayer {
 
     private fun playSound(
         fileName: String,
-        loop: Boolean = false
+        loop: Boolean = false,
+        restart: Boolean = false
     ) {
         val audio = audioElements[fileName] ?: createAudioElement(fileName).also {
             audioElements[fileName] = it
         }
+
         audio.loop = loop
-        audio.play().catch {
-            println("Error playing sound: $fileName")
-            it
+
+        if (restart) {
+            audio.currentTime = 0.0
+        }
+
+        audio.play().catch { error ->
+            println("Error playing sound: $fileName - $error")
+            error
         }
     }
 
@@ -67,8 +80,8 @@ actual class AudioPlayer {
     }
 
     private fun createAudioElement(fileName: String): Audio {
-        val path = "composeResources/clappybee.composeapp.generated.resources/files/$fileName"
-//        val path = "src/commonMain/composeResources/files/$fileName"
+        val path = Res.getUri("files/$fileName")
+
         return Audio(path).apply {
             onerror = { _, _, _, _, _ ->
                 println("Error loading audio file: $path")

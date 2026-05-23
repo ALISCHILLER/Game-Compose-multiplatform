@@ -4,11 +4,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import com.msa.compose_kmm.domain.AudioPlayer
 import com.msa.compose_kmm.domain.Game
 import com.msa.compose_kmm.domain.GameStatus
 import com.msa.compose_kmm.domain.sprite.SpriteAnimationSpec
@@ -20,25 +21,37 @@ import com.msa.compose_kmm.ui.GameCanvas
 import com.msa.compose_kmm.ui.GameHud
 import com.msa.compose_kmm.ui.GameOverOverlay
 import com.msa.compose_kmm.ui.StartOverlay
+import com.msa.compose_kmm.ui.ZarBeeGameTheme
 import compose_kmm.composeapp.generated.resources.Res
 import compose_kmm.composeapp.generated.resources.bee_sprite
 import kotlinx.coroutines.delay
+import org.koin.compose.koinInject
 
 private const val BEE_FRAME_SIZE = 80
 private const val BEE_TOTAL_FRAMES = 9
 private const val BEE_FRAMES_PER_ROW = 3
 private const val BEE_FRAME_DURATION_MILLIS = 70L
 
+/**
+ * ورودی اصلی UI مشترک برنامه.
+ */
 @Composable
-@Preview
 fun App() {
-    MaterialTheme {
-        GameRoot()
+    ZarBeeGameTheme {
+        GameRoot(audioPlayer = koinInject())
     }
 }
 
+/**
+ * ریشه صفحه بازی.
+ *
+ * اینجا فقط هماهنگی بین UI، Game Loop، Sprite Animation و Audio انجام می‌شود.
+ * منطق اصلی بازی داخل Game.kt باقی می‌ماند.
+ */
 @Composable
-private fun GameRoot() {
+private fun GameRoot(
+    audioPlayer: AudioPlayer
+) {
     val game = remember { Game() }
 
     val animationSpec = remember {
@@ -65,6 +78,12 @@ private fun GameRoot() {
         )
     }
 
+    DisposableEffect(audioPlayer) {
+        onDispose {
+            audioPlayer.release()
+        }
+    }
+
     LaunchedEffect(game) {
         var previousFrameTime = 0L
 
@@ -80,11 +99,22 @@ private fun GameRoot() {
         }
     }
 
+    LaunchedEffect(game.status, audioPlayer) {
+        when (game.status) {
+            GameStatus.Idle -> audioPlayer.stopGameSound()
+
+            GameStatus.Started -> audioPlayer.playGameSoundInLoop()
+
+            GameStatus.Over -> {
+                audioPlayer.stopGameSound()
+                audioPlayer.playGameOverSound()
+            }
+        }
+    }
+
     LaunchedEffect(game.status, animationSpec) {
         when (game.status) {
-            GameStatus.Idle -> {
-                spriteState.stop()
-            }
+            GameStatus.Idle -> spriteState.stop()
 
             GameStatus.Started -> {
                 spriteState.play()
@@ -95,9 +125,7 @@ private fun GameRoot() {
                 }
             }
 
-            GameStatus.Over -> {
-                spriteState.pause()
-            }
+            GameStatus.Over -> spriteState.pause()
         }
     }
 
@@ -116,18 +144,10 @@ private fun GameRoot() {
                 game.updateBounds(width = width, height = height)
             },
             onJump = {
-                when (game.status) {
-                    GameStatus.Idle -> {
-                        game.start()
-                        game.jump()
-                    }
-
-                    GameStatus.Started -> {
-                        game.jump()
-                    }
-
-                    GameStatus.Over -> Unit
-                }
+                handleJump(
+                    game = game,
+                    audioPlayer = audioPlayer
+                )
             }
         )
 
@@ -139,8 +159,10 @@ private fun GameRoot() {
         if (game.status == GameStatus.Idle) {
             StartOverlay(
                 onStartClick = {
-                    game.start()
-                    game.jump()
+                    handleJump(
+                        game = game,
+                        audioPlayer = audioPlayer
+                    )
                 }
             )
         }
@@ -151,9 +173,33 @@ private fun GameRoot() {
                 bestScore = game.bestScore,
                 onRestartClick = {
                     game.restart()
+                    audioPlayer.playJumpSound()
                     game.jump()
                 }
             )
         }
+    }
+}
+
+/**
+ * مدیریت یکپارچه tap/click کاربر.
+ */
+private fun handleJump(
+    game: Game,
+    audioPlayer: AudioPlayer
+) {
+    when (game.status) {
+        GameStatus.Idle -> {
+            game.start()
+            audioPlayer.playJumpSound()
+            game.jump()
+        }
+
+        GameStatus.Started -> {
+            audioPlayer.playJumpSound()
+            game.jump()
+        }
+
+        GameStatus.Over -> Unit
     }
 }

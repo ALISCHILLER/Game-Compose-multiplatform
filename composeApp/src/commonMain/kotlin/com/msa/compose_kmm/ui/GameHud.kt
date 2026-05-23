@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.dp
 import com.msa.compose_kmm.utils.BhomaFontFamily
 import com.msa.compose_kmm.utils.NazaninFontFamily
 
+/**
+ * HUD بالای صفحه.
+ */
 @Composable
 fun GameHud(
     score: Int,

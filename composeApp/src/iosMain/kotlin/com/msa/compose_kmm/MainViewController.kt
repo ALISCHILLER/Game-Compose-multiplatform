@@ -1,5 +1,12 @@
 package com.msa.compose_kmm
 
 import androidx.compose.ui.window.ComposeUIViewController
+import com.msa.compose_kmm.di.initializeKoin
 
-fun MainViewController() = ComposeUIViewController { App() }
+/**
+ * Entry point نسخه iOS.
+ */
+fun MainViewController() = ComposeUIViewController {
+    initializeKoin()
+    App()
+}

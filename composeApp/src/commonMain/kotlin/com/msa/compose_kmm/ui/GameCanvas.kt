@@ -28,6 +28,15 @@ import compose_kmm.composeapp.generated.resources.pipe_cap
 import org.jetbrains.compose.resources.imageResource
 import kotlin.math.roundToInt
 
+/**
+ * Canvas اصلی بازی.
+ *
+ * این Composable فقط وظیفه رسم دارد:
+ * - رسم لوله‌ها
+ * - رسم سایه زنبور
+ * - رسم sprite frame زنبور
+ * - دریافت click برای پرش
+ */
 @Composable
 fun GameCanvas(
     game: Game,
@@ -101,6 +110,7 @@ fun GameCanvas(
                         .coerceAtLeast(1)
                 )
 
+                // سایه لوله بالا
                 drawRect(
                     color = GamePipeShadow,
                     topLeft = Offset(pipeLeft + pipeWidth * 0.08f, 0f),
@@ -110,6 +120,7 @@ fun GameCanvas(
                     )
                 )
 
+                // بدنه لوله بالا
                 if (topBodyHeight > 0) {
                     drawImage(
                         image = pipeImage,
@@ -123,6 +134,7 @@ fun GameCanvas(
                     )
                 }
 
+                // کلاهک لوله بالا؛ وارونه رسم می‌شود.
                 withTransform({
                     scale(
                         scaleX = 1f,
@@ -146,6 +158,7 @@ fun GameCanvas(
                     )
                 }
 
+                // سایه لوله پایین
                 drawRect(
                     color = GamePipeShadow,
                     topLeft = Offset(
@@ -158,6 +171,7 @@ fun GameCanvas(
                     )
                 )
 
+                // کلاهک لوله پایین
                 drawImage(
                     image = pipeCapImage,
                     dstOffset = IntOffset(
@@ -170,6 +184,7 @@ fun GameCanvas(
                     )
                 )
 
+                // بدنه لوله پایین
                 if (bottomBodyHeight > 0) {
                     drawImage(
                         image = pipeImage,
@@ -194,6 +209,7 @@ fun GameCanvas(
             val shadowAlpha = (1f - distanceToGround / (size.height * 0.58f))
                 .coerceIn(0.12f, 0.42f)
 
+            // سایه نرم زیر زنبور
             drawOval(
                 color = GameSoftShadow.copy(alpha = shadowAlpha),
                 topLeft = Offset(
@@ -206,6 +222,7 @@ fun GameCanvas(
                 )
             )
 
+            // چرخش زنبور بر اساس سرعت عمودی
             rotate(
                 degrees = animatedAngle,
                 pivot = Offset(
@@ -219,10 +236,8 @@ fun GameCanvas(
                     animationSpec = animationSpec,
                     frame = currentFrame,
                     offset = IntOffset(
-                        x = (game.bee.x - selectedSheet.frameWidthPx / 2f)
-                            .roundToInt(),
-                        y = (game.bee.y - selectedSheet.frameHeightPx / 2f)
-                            .roundToInt()
+                        x = (game.bee.x - selectedSheet.frameWidthPx / 2f).roundToInt(),
+                        y = (game.bee.y - selectedSheet.frameHeightPx / 2f).roundToInt()
                     ),
                     dstSize = IntSize(
                         width = selectedSheet.frameWidthPx,

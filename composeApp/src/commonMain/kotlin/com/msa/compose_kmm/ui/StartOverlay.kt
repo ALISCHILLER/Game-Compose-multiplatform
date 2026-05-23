@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import com.msa.compose_kmm.utils.BhomaFontFamily
 import com.msa.compose_kmm.utils.NazaninFontFamily
 
+/**
+ * Overlay شروع بازی.
+ */
 @Composable
 fun StartOverlay(
     onStartClick: () -> Unit
