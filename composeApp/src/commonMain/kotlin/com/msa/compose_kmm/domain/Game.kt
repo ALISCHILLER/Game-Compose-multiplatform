@@ -6,88 +6,56 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlin.random.Random
 
-/**
- * هسته اصلی منطق بازی.
- *
- * این کلاس مسئول مدیریت:
- * - وضعیت بازی
- * - زنبور
- * - لوله‌ها
- * - امتیاز
- * - برخوردها
- * - شروع و پایان بازی
- */
-class Game(
-    private val gravity: Float = 0.55f,
-    private val jumpImpulse: Float = -9.5f,
-    val beeMaxVelocity: Float = 14f,
-    private val pipeSpeed: Float = 5.4f,
-    val pipeGapSize: Float = 240f,
-    val pipeWidth: Float = 86f,
-    private val pipeSpacing: Float = 320f,
-    val groundHeight: Float = 140f
-) {
+class Game {
 
-    /**
-     * عرض صفحه بازی.
-     */
     var screenWidth by mutableIntStateOf(0)
         private set
 
-    /**
-     * ارتفاع صفحه بازی.
-     */
     var screenHeight by mutableIntStateOf(0)
         private set
 
-    /**
-     * وضعیت فعلی بازی.
-     */
     var status by mutableStateOf(GameStatus.Idle)
         private set
 
-    /**
-     * امتیاز فعلی.
-     */
     var score by mutableIntStateOf(0)
         private set
 
-    /**
-     * بهترین امتیاز.
-     *
-     * فعلاً فقط داخل حافظه نگه داشته می‌شود.
-     */
     var bestScore by mutableIntStateOf(0)
         private set
 
-    /**
-     * سرعت عمودی زنبور.
-     */
     var beeVelocity by mutableStateOf(0f)
         private set
 
-    /**
-     * زنبور فعلی بازی.
-     */
-    var bee by mutableStateOf(
-        Bee(
-            x = 0f,
-            y = 0f
-        )
-    )
+    var bee by mutableStateOf(Bee(x = 0f, y = 0f))
         private set
 
-    /**
-     * لیست لوله‌های فعلی بازی.
-     */
     var pipePairs by mutableStateOf(emptyList<PipePair>())
         private set
 
-    /**
-     * ثبت اندازه صفحه.
-     *
-     * اگر سایز صفحه عوض شود، world ریست می‌شود تا محاسبات بازی خراب نشود.
-     */
+    val groundHeight: Float
+        get() = (screenHeight * 0.16f).coerceIn(104f, 168f)
+
+    val beeMaxVelocity: Float
+        get() = (screenHeight * 0.018f).coerceIn(11.5f, 16.5f)
+
+    val pipeGapSize: Float
+        get() = (screenHeight * 0.285f).coerceIn(210f, 296f)
+
+    val pipeWidth: Float
+        get() = (screenWidth * 0.145f).coerceIn(76f, 118f)
+
+    private val pipeSpacing: Float
+        get() = (screenWidth * 0.52f).coerceIn(300f, 430f)
+
+    private val gravity: Float
+        get() = (screenHeight * 0.00078f).coerceIn(0.48f, 0.68f)
+
+    private val jumpImpulse: Float
+        get() = -(screenHeight * 0.0142f).coerceIn(8.6f, 12.4f)
+
+    private val pipeSpeed: Float
+        get() = (screenWidth * 0.0082f).coerceIn(4.2f, 6.7f)
+
     fun updateBounds(width: Int, height: Int) {
         if (width <= 0 || height <= 0) return
 
@@ -96,7 +64,6 @@ class Game(
 
         screenWidth = width
         screenHeight = height
-
         resetWorld()
 
         if (status == GameStatus.Started) {
@@ -104,9 +71,6 @@ class Game(
         }
     }
 
-    /**
-     * شروع بازی.
-     */
     fun start() {
         if (screenWidth <= 0 || screenHeight <= 0) return
 
@@ -114,34 +78,21 @@ class Game(
         status = GameStatus.Started
     }
 
-    /**
-     * شروع دوباره بازی.
-     */
     fun restart() {
-        if (screenWidth <= 0 || screenHeight <= 0) return
-
-        resetWorld()
-        status = GameStatus.Started
+        start()
     }
 
-    /**
-     * پرش زنبور.
-     */
     fun jump() {
         if (status != GameStatus.Started) return
+
         beeVelocity = jumpImpulse
     }
 
-    /**
-     * آپدیت منطق بازی.
-     *
-     * @param deltaMillis اختلاف زمانی بین این فریم و فریم قبلی
-     */
     fun update(deltaMillis: Long) {
         if (status != GameStatus.Started) return
         if (screenWidth <= 0 || screenHeight <= 0) return
 
-        val step = (deltaMillis / 16.6667f).coerceIn(0.75f, 2.2f)
+        val step = (deltaMillis / 16.6667f).coerceIn(0.5f, 1.8f)
 
         updateBee(step)
         updatePipes(step)
@@ -149,98 +100,75 @@ class Game(
         checkCollisions()
     }
 
-    /**
-     * ریست کامل world بازی.
-     */
     private fun resetWorld() {
         score = 0
         beeVelocity = 0f
 
+        val radius = (screenWidth * 0.052f).coerceIn(24f, 34f)
+
         bee = Bee(
             x = screenWidth * 0.28f,
-            y = screenHeight * 0.42f
+            y = screenHeight * 0.42f,
+            radius = radius
         )
 
         pipePairs = createInitialPipes()
     }
 
-    /**
-     * آپدیت حرکت زنبور.
-     */
     private fun updateBee(step: Float) {
         beeVelocity = (beeVelocity + gravity * step)
             .coerceIn(-beeMaxVelocity, beeMaxVelocity)
 
-        bee = bee.copy(
-            y = bee.y + beeVelocity * step
-        )
+        bee = bee.copy(y = bee.y + beeVelocity * step)
 
-        /**
-         * برخورد با سقف:
-         * اجازه نمی‌دهیم زنبور از بالای صفحه خارج شود.
-         */
         if (bee.y - bee.radius <= 0f) {
             bee = bee.copy(y = bee.radius)
             beeVelocity = 0f
         }
     }
 
-    /**
-     * ساخت چند لوله اولیه.
-     */
     private fun createInitialPipes(): List<PipePair> {
-        val startX = screenWidth + 180f
+        val startX = screenWidth + pipeSpacing * 0.65f
 
         return List(3) { index ->
-            createPipe(
-                x = startX + index * pipeSpacing
-            )
+            createPipe(x = startX + index * pipeSpacing)
         }
     }
 
-    /**
-     * ساخت یک لوله جدید با ارتفاع تصادفی.
-     */
     private fun createPipe(x: Float): PipePair {
-        val topMargin = 120f
-        val bottomLimit = screenHeight - groundHeight - 120f
+        val playableBottom = (screenHeight - groundHeight).coerceAtLeast(1f)
+        val safeTopMargin = (playableBottom * 0.14f).coerceIn(76f, 132f)
+        val safeBottomMargin = (playableBottom * 0.12f).coerceIn(70f, 126f)
 
-        val maxTopHeight = bottomLimit - pipeGapSize
-        val randomTopHeight = Random.nextFloat()
-            .let { random ->
-                topMargin + (maxTopHeight - topMargin) * random
-            }
+        val minTopHeight = safeTopMargin
+        val maxTopHeight = (playableBottom - safeBottomMargin - pipeGapSize)
+            .coerceAtLeast(minTopHeight + 1f)
+
+        val topHeight = if (maxTopHeight <= minTopHeight) {
+            (playableBottom * 0.34f).coerceAtLeast(minTopHeight)
+        } else {
+            minTopHeight + (maxTopHeight - minTopHeight) * Random.nextFloat()
+        }
 
         return PipePair(
             x = x,
-            topHeight = randomTopHeight,
+            topHeight = topHeight,
             gapHeight = pipeGapSize,
             width = pipeWidth
         )
     }
 
-    /**
-     * آپدیت لوله‌ها:
-     * - حرکت به سمت چپ
-     * - حذف لوله‌های خارج‌شده
-     * - اضافه‌کردن لوله‌های جدید
-     */
     private fun updatePipes(step: Float) {
         val movedPipes = pipePairs
-            .map { pipe ->
-                pipe.copy(
-                    x = pipe.x - pipeSpeed * step
-                )
-            }
-            .filter { pipe ->
-                pipe.x + pipe.width / 2f > -40f
-            }
+            .map { pipe -> pipe.copy(x = pipe.x - pipeSpeed * step) }
+            .filter { pipe -> pipe.x + pipe.width / 2f > -40f }
             .toMutableList()
 
         if (movedPipes.isEmpty()) {
-            movedPipes += createPipe(screenWidth + 200f)
+            movedPipes += createPipe(screenWidth + pipeSpacing)
         } else {
             val lastX = movedPipes.maxOf { it.x }
+
             if (lastX < screenWidth + pipeSpacing / 2f) {
                 movedPipes += createPipe(lastX + pipeSpacing)
             }
@@ -249,78 +177,58 @@ class Game(
         pipePairs = movedPipes
     }
 
-    /**
-     * محاسبه امتیاز.
-     *
-     * وقتی زنبور از یک لوله عبور کند و آن لوله هنوز امتیاز نداده باشد،
-     * امتیاز یک واحد زیاد می‌شود.
-     */
     private fun updateScore() {
-        val updated = pipePairs.map { pipe ->
+        pipePairs = pipePairs.map { pipe ->
             val rightEdge = pipe.x + pipe.width / 2f
 
             if (!pipe.scored && bee.x > rightEdge) {
                 score += 1
+
                 if (score > bestScore) {
                     bestScore = score
                 }
+
                 pipe.copy(scored = true)
             } else {
                 pipe
             }
         }
-
-        pipePairs = updated
     }
 
-    /**
-     * بررسی برخوردها:
-     * - برخورد با زمین
-     * - برخورد با لوله‌ها
-     */
     private fun checkCollisions() {
         val floorY = screenHeight - groundHeight
 
-        /**
-         * برخورد با زمین.
-         */
         if (bee.y + bee.radius >= floorY) {
             bee = bee.copy(y = floorY - bee.radius)
             gameOver()
             return
         }
 
-        /**
-         * باکس برخورد تقریبی زنبور.
-         * کمی کوچک‌تر از شعاع کامل گرفته شده تا حس برخورد طبیعی‌تر شود.
-         */
-        val beeLeft = bee.x - bee.radius * 0.72f
-        val beeRight = bee.x + bee.radius * 0.72f
-        val beeTop = bee.y - bee.radius * 0.72f
-        val beeBottom = bee.y + bee.radius * 0.72f
+        val horizontalRadius = bee.radius * 0.66f
+        val verticalRadius = bee.radius * 0.70f
+
+        val beeLeft = bee.x - horizontalRadius
+        val beeRight = bee.x + horizontalRadius
+        val beeTop = bee.y - verticalRadius
+        val beeBottom = bee.y + verticalRadius
 
         pipePairs.forEach { pipe ->
             val pipeLeft = pipe.x - pipe.width / 2f
             val pipeRight = pipe.x + pipe.width / 2f
-            val gapTop = pipe.topHeight
-            val gapBottom = pipe.gapBottom
 
             val overlapX = beeRight >= pipeLeft && beeLeft <= pipeRight
-            val hitUpperPipe = beeTop <= gapTop
-            val hitLowerPipe = beeBottom >= gapBottom
+            val hitPipe = beeTop <= pipe.topHeight || beeBottom >= pipe.gapBottom
 
-            if (overlapX && (hitUpperPipe || hitLowerPipe)) {
+            if (overlapX && hitPipe) {
                 gameOver()
                 return
             }
         }
     }
 
-    /**
-     * پایان بازی.
-     */
     private fun gameOver() {
         status = GameStatus.Over
+
         if (score > bestScore) {
             bestScore = score
         }

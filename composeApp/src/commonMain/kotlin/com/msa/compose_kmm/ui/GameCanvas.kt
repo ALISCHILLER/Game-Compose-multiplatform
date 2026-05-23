@@ -11,7 +11,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -26,13 +28,6 @@ import compose_kmm.composeapp.generated.resources.pipe_cap
 import org.jetbrains.compose.resources.imageResource
 import kotlin.math.roundToInt
 
-/**
- * Canvas اصلی بازی.
- *
- * اینجا تمام عناصر گیم‌پلی رسم می‌شوند:
- * - لوله‌ها
- * - زنبور
- */
 @Composable
 fun GameCanvas(
     game: Game,
@@ -43,10 +38,7 @@ fun GameCanvas(
     onJump: () -> Unit
 ) {
     BoxWithConstraints {
-        val selectedSheet = remember(
-            spriteSpec,
-            maxWidth.value
-        ) {
+        val selectedSheet = remember(spriteSpec, maxWidth.value) {
             spriteSpec.sheetFor(maxWidth.value)
         }
 
@@ -56,9 +48,9 @@ fun GameCanvas(
 
         val animatedAngle by animateFloatAsState(
             targetValue = when {
-                game.beeVelocity > game.beeMaxVelocity * 0.75f -> 26f
-                game.beeVelocity < 0f -> -15f
-                else -> 4f
+                game.beeVelocity > game.beeMaxVelocity * 0.62f -> 24f
+                game.beeVelocity < 0f -> -18f
+                else -> 5f
             },
             label = "BeeRotationAnimation"
         )
@@ -67,10 +59,7 @@ fun GameCanvas(
             modifier = Modifier
                 .fillMaxSize()
                 .onGloballyPositioned {
-                    onScreenSizeChanged(
-                        it.size.width,
-                        it.size.height
-                    )
+                    onScreenSizeChanged(it.size.width, it.size.height)
                 }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -78,19 +67,13 @@ fun GameCanvas(
                     onClick = onJump
                 )
         ) {
-            /**
-             * رسم لوله‌ها.
-             */
             game.pipePairs.forEach { pipe ->
                 val pipeWidth = pipe.width.roundToInt()
                 val pipeLeft = (pipe.x - pipe.width / 2f).roundToInt()
 
-                /**
-                 * نسبت cap به body با توجه به asset فعلی pipe_cap.
-                 */
-                val capHeight = (pipe.width * 0.54f)
+                val capHeight = (pipe.width * 0.62f)
                     .roundToInt()
-                    .coerceAtLeast(18)
+                    .coerceAtLeast(28)
 
                 val topBodyHeight = (pipe.topHeight - capHeight)
                     .roundToInt()
@@ -102,22 +85,37 @@ fun GameCanvas(
 
                 val bottomBodyY = bottomCapY + capHeight
 
-                val bottomBodyHeight = (
-                        size.height - game.groundHeight - bottomBodyY
-                        )
+                val bottomBodyHeight = (size.height - game.groundHeight - bottomBodyY)
                     .roundToInt()
                     .coerceAtLeast(0)
 
-                /**
-                 * بدنه لوله بالایی.
-                 */
+                val bodySrcOffset = IntOffset(
+                    x = 0,
+                    y = (pipeImage.height * 0.34f).roundToInt()
+                )
+
+                val bodySrcSize = IntSize(
+                    width = pipeImage.width,
+                    height = (pipeImage.height * 0.38f)
+                        .roundToInt()
+                        .coerceAtLeast(1)
+                )
+
+                drawRect(
+                    color = GamePipeShadow,
+                    topLeft = Offset(pipeLeft + pipeWidth * 0.08f, 0f),
+                    size = Size(
+                        width = pipeWidth.toFloat(),
+                        height = topBodyHeight + capHeight.toFloat()
+                    )
+                )
+
                 if (topBodyHeight > 0) {
                     drawImage(
                         image = pipeImage,
-                        dstOffset = IntOffset(
-                            x = pipeLeft,
-                            y = 0
-                        ),
+                        srcOffset = bodySrcOffset,
+                        srcSize = bodySrcSize,
+                        dstOffset = IntOffset(x = pipeLeft, y = 0),
                         dstSize = IntSize(
                             width = pipeWidth,
                             height = topBodyHeight
@@ -125,24 +123,41 @@ fun GameCanvas(
                     )
                 }
 
-                /**
-                 * کلاهک لوله بالایی.
-                 */
-                drawImage(
-                    image = pipeCapImage,
-                    dstOffset = IntOffset(
-                        x = pipeLeft,
-                        y = topBodyHeight
+                withTransform({
+                    scale(
+                        scaleX = 1f,
+                        scaleY = -1f,
+                        pivot = Offset(
+                            x = pipe.x,
+                            y = topBodyHeight + capHeight / 2f
+                        )
+                    )
+                }) {
+                    drawImage(
+                        image = pipeCapImage,
+                        dstOffset = IntOffset(
+                            x = pipeLeft,
+                            y = topBodyHeight
+                        ),
+                        dstSize = IntSize(
+                            width = pipeWidth,
+                            height = capHeight
+                        )
+                    )
+                }
+
+                drawRect(
+                    color = GamePipeShadow,
+                    topLeft = Offset(
+                        x = pipeLeft + pipeWidth * 0.08f,
+                        y = bottomCapY.toFloat()
                     ),
-                    dstSize = IntSize(
-                        width = pipeWidth,
-                        height = capHeight
+                    size = Size(
+                        width = pipeWidth.toFloat(),
+                        height = (capHeight + bottomBodyHeight).toFloat()
                     )
                 )
 
-                /**
-                 * کلاهک لوله پایینی.
-                 */
                 drawImage(
                     image = pipeCapImage,
                     dstOffset = IntOffset(
@@ -155,12 +170,11 @@ fun GameCanvas(
                     )
                 )
 
-                /**
-                 * بدنه لوله پایینی.
-                 */
                 if (bottomBodyHeight > 0) {
                     drawImage(
                         image = pipeImage,
+                        srcOffset = bodySrcOffset,
+                        srcSize = bodySrcSize,
                         dstOffset = IntOffset(
                             x = pipeLeft,
                             y = bottomBodyY
@@ -173,9 +187,25 @@ fun GameCanvas(
                 }
             }
 
-            /**
-             * رسم زنبور.
-             */
+            val floorY = size.height - game.groundHeight
+            val shadowWidth = game.bee.radius * 2.15f
+            val distanceToGround = (floorY - game.bee.y).coerceAtLeast(0f)
+
+            val shadowAlpha = (1f - distanceToGround / (size.height * 0.58f))
+                .coerceIn(0.12f, 0.42f)
+
+            drawOval(
+                color = GameSoftShadow.copy(alpha = shadowAlpha),
+                topLeft = Offset(
+                    x = game.bee.x - shadowWidth / 2f,
+                    y = floorY + 10f
+                ),
+                size = Size(
+                    width = shadowWidth,
+                    height = game.bee.radius * 0.34f
+                )
+            )
+
             rotate(
                 degrees = animatedAngle,
                 pivot = Offset(
@@ -189,8 +219,10 @@ fun GameCanvas(
                     animationSpec = animationSpec,
                     frame = currentFrame,
                     offset = IntOffset(
-                        x = (game.bee.x - selectedSheet.frameWidthPx / 2f).roundToInt(),
-                        y = (game.bee.y - selectedSheet.frameHeightPx / 2f).roundToInt()
+                        x = (game.bee.x - selectedSheet.frameWidthPx / 2f)
+                            .roundToInt(),
+                        y = (game.bee.y - selectedSheet.frameHeightPx / 2f)
+                            .roundToInt()
                     ),
                     dstSize = IntSize(
                         width = selectedSheet.frameWidthPx,

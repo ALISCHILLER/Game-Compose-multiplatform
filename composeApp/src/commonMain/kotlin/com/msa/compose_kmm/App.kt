@@ -29,9 +29,6 @@ private const val BEE_TOTAL_FRAMES = 9
 private const val BEE_FRAMES_PER_ROW = 3
 private const val BEE_FRAME_DURATION_MILLIS = 70L
 
-/**
- * ورودی اصلی UI بازی.
- */
 @Composable
 @Preview
 fun App() {
@@ -40,16 +37,9 @@ fun App() {
     }
 }
 
-/**
- * ریشه اصلی بازی.
- *
- * این Composable فقط مسئول اتصال state بازی، Sprite، پس‌زمینه، Canvas و Overlayهاست.
- */
 @Composable
 private fun GameRoot() {
-    val game = remember {
-        Game()
-    }
+    val game = remember { Game() }
 
     val animationSpec = remember {
         SpriteAnimationSpec(
@@ -75,21 +65,12 @@ private fun GameRoot() {
         )
     }
 
-    /**
-     * حلقه اصلی بازی.
-     *
-     * با withFrameMillis زمان واقعی بین frameها محاسبه می‌شود.
-     * این باعث می‌شود بازی روی دستگاه‌های سریع و کند رفتار پایدارتری داشته باشد.
-     */
     LaunchedEffect(game) {
         var previousFrameTime = 0L
 
         while (true) {
             withFrameMillis { currentFrameTime ->
-                if (
-                    previousFrameTime != 0L &&
-                    game.status == GameStatus.Started
-                ) {
+                if (previousFrameTime != 0L && game.status == GameStatus.Started) {
                     val deltaMillis = currentFrameTime - previousFrameTime
                     game.update(deltaMillis)
                 }
@@ -99,16 +80,7 @@ private fun GameRoot() {
         }
     }
 
-    /**
-     * کنترل اجرای انیمیشن Sprite زنبور.
-     *
-     * SpriteState فعلی فقط state را نگه می‌دارد و خودش coroutine داخلی ندارد،
-     * بنابراین فریم‌ها را اینجا جلو می‌بریم.
-     */
-    LaunchedEffect(
-        game.status,
-        animationSpec
-    ) {
+    LaunchedEffect(game.status, animationSpec) {
         when (game.status) {
             GameStatus.Idle -> {
                 spriteState.stop()
@@ -129,11 +101,10 @@ private fun GameRoot() {
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         GameBackground(
-            isRunning = game.status == GameStatus.Started
+            isRunning = game.status == GameStatus.Started,
+            groundHeightPx = game.groundHeight
         )
 
         GameCanvas(
@@ -142,10 +113,7 @@ private fun GameRoot() {
             animationSpec = animationSpec,
             currentFrame = spriteState.currentFrame,
             onScreenSizeChanged = { width, height ->
-                game.updateBounds(
-                    width = width,
-                    height = height
-                )
+                game.updateBounds(width = width, height = height)
             },
             onJump = {
                 when (game.status) {
@@ -158,10 +126,7 @@ private fun GameRoot() {
                         game.jump()
                     }
 
-                    GameStatus.Over -> {
-                        // در حالت Game Over کلیک روی صفحه کاری نمی‌کند.
-                        // کاربر باید دکمه شروع دوباره را بزند.
-                    }
+                    GameStatus.Over -> Unit
                 }
             }
         )
@@ -175,6 +140,7 @@ private fun GameRoot() {
             StartOverlay(
                 onStartClick = {
                     game.start()
+                    game.jump()
                 }
             )
         }
@@ -185,6 +151,7 @@ private fun GameRoot() {
                 bestScore = game.bestScore,
                 onRestartClick = {
                     game.restart()
+                    game.jump()
                 }
             )
         }

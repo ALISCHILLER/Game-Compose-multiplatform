@@ -31,3 +31,10 @@ val GameCardDark = Color(0xCC2B1A10)
  * برای سازگاری با کدهای قبلی.
  */
 val orange = GamePrimaryOrange
+
+val GameTextMuted = Color(0xFFEDE0C7)
+val GamePanel = Color(0xEE2F1C0F)
+val GamePanelBorder = Color(0x66FFE1A3)
+val GameLeafGreen = Color(0xFF4DAA35)
+val GameSoftShadow = Color(0x66000000)
+val GamePipeShadow = Color(0x552A1807)
