@@ -5,11 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -26,10 +22,12 @@ import com.msa.compose_kmm.ui.GameOverOverlay
 import com.msa.compose_kmm.ui.StartOverlay
 import compose_kmm.composeapp.generated.resources.Res
 import compose_kmm.composeapp.generated.resources.bee_sprite
+import kotlinx.coroutines.delay
 
 private const val BEE_FRAME_SIZE = 80
 private const val BEE_TOTAL_FRAMES = 9
 private const val BEE_FRAMES_PER_ROW = 3
+private const val BEE_FRAME_DURATION_MILLIS = 70L
 
 /**
  * ورودی اصلی UI بازی.
@@ -38,27 +36,26 @@ private const val BEE_FRAMES_PER_ROW = 3
 @Preview
 fun App() {
     MaterialTheme {
-        GameScreen()
+        GameRoot()
     }
 }
 
 /**
- * صفحه اصلی بازی.
+ * ریشه اصلی بازی.
+ *
+ * این Composable فقط مسئول اتصال state بازی، Sprite، پس‌زمینه، Canvas و Overlayهاست.
  */
 @Composable
-private fun GameScreen() {
-    var screenWidth by remember { mutableIntStateOf(0) }
-    var screenHeight by remember { mutableIntStateOf(0) }
-
-    var game by remember {
-        mutableStateOf(Game())
+private fun GameRoot() {
+    val game = remember {
+        Game()
     }
 
     val animationSpec = remember {
         SpriteAnimationSpec(
             totalFrames = BEE_TOTAL_FRAMES,
             framesPerRow = BEE_FRAMES_PER_ROW,
-            frameDurationMillis = 70L,
+            frameDurationMillis = BEE_FRAME_DURATION_MILLIS,
             loop = true
         )
     }
@@ -78,22 +75,66 @@ private fun GameScreen() {
         )
     }
 
-    LaunchedEffect(game.status) {
-        while (game.status == GameStatus.Started) {
-            withFrameMillis {
-                game.updateGameProgress()
+    /**
+     * حلقه اصلی بازی.
+     *
+     * با withFrameMillis زمان واقعی بین frameها محاسبه می‌شود.
+     * این باعث می‌شود بازی روی دستگاه‌های سریع و کند رفتار پایدارتری داشته باشد.
+     */
+    LaunchedEffect(game) {
+        var previousFrameTime = 0L
+
+        while (true) {
+            withFrameMillis { currentFrameTime ->
+                if (
+                    previousFrameTime != 0L &&
+                    game.status == GameStatus.Started
+                ) {
+                    val deltaMillis = currentFrameTime - previousFrameTime
+                    game.update(deltaMillis)
+                }
+
+                previousFrameTime = currentFrameTime
             }
         }
+    }
 
-        if (game.status == GameStatus.Over) {
-            spriteState.pause()
+    /**
+     * کنترل اجرای انیمیشن Sprite زنبور.
+     *
+     * SpriteState فعلی فقط state را نگه می‌دارد و خودش coroutine داخلی ندارد،
+     * بنابراین فریم‌ها را اینجا جلو می‌بریم.
+     */
+    LaunchedEffect(
+        game.status,
+        animationSpec
+    ) {
+        when (game.status) {
+            GameStatus.Idle -> {
+                spriteState.stop()
+            }
+
+            GameStatus.Started -> {
+                spriteState.play()
+
+                while (game.status == GameStatus.Started) {
+                    delay(animationSpec.frameDurationMillis)
+                    spriteState.nextFrame(loop = animationSpec.loop)
+                }
+            }
+
+            GameStatus.Over -> {
+                spriteState.pause()
+            }
         }
     }
 
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
-        GameBackground()
+        GameBackground(
+            isRunning = game.status == GameStatus.Started
+        )
 
         GameCanvas(
             game = game,
@@ -101,50 +142,49 @@ private fun GameScreen() {
             animationSpec = animationSpec,
             currentFrame = spriteState.currentFrame,
             onScreenSizeChanged = { width, height ->
-                if (screenWidth != width || screenHeight != height) {
-                    screenWidth = width
-                    screenHeight = height
-
-                    game = Game(
-                        screenWith = width,
-                        screenHeight = height
-                    )
-                }
+                game.updateBounds(
+                    width = width,
+                    height = height
+                )
             },
             onJump = {
-                if (game.status == GameStatus.Started) {
-                    game.jump()
+                when (game.status) {
+                    GameStatus.Idle -> {
+                        game.start()
+                        game.jump()
+                    }
+
+                    GameStatus.Started -> {
+                        game.jump()
+                    }
+
+                    GameStatus.Over -> {
+                        // در حالت Game Over کلیک روی صفحه کاری نمی‌کند.
+                        // کاربر باید دکمه شروع دوباره را بزند.
+                    }
                 }
             }
         )
 
         GameHud(
-            score = 0,
-            bestScore = 0
+            score = game.score,
+            bestScore = game.bestScore
         )
 
         if (game.status == GameStatus.Idle) {
             StartOverlay(
                 onStartClick = {
                     game.start()
-                    spriteState.play()
                 }
             )
         }
 
         if (game.status == GameStatus.Over) {
             GameOverOverlay(
-                score = 0,
+                score = game.score,
+                bestScore = game.bestScore,
                 onRestartClick = {
-                    game = Game(
-                        screenWith = screenWidth,
-                        screenHeight = screenHeight
-                    )
-
-                    game.start()
-
-                    spriteState.stop()
-                    spriteState.play()
+                    game.restart()
                 }
             )
         }

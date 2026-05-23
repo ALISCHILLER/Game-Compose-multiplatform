@@ -2,4 +2,32 @@ package com.msa.compose_kmm.ui
 
 import androidx.compose.ui.graphics.Color
 
-val orange = Color(0xFFCB5C0C)
+/**
+ * رنگ اصلی بازی.
+ */
+val GamePrimaryOrange = Color(0xFFCB5C0C)
+
+/**
+ * رنگ زرد عسلی برای تاکیدهای UI.
+ */
+val GameHoneyYellow = Color(0xFFFFC928)
+
+/**
+ * رنگ سفید متن‌ها.
+ */
+val GameTextWhite = Color(0xFFFFFFFF)
+
+/**
+ * پس‌زمینه نیمه‌شفاف overlayها.
+ */
+val GameOverlayBlack = Color(0x99000000)
+
+/**
+ * رنگ کارت‌های تیره.
+ */
+val GameCardDark = Color(0xCC2B1A10)
+
+/**
+ * برای سازگاری با کدهای قبلی.
+ */
+val orange = GamePrimaryOrange

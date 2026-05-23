@@ -1,9 +1,24 @@
 package com.msa.compose_kmm.domain
 
+/**
+ * مدل یک لوله.
+ *
+ * @property x موقعیت افقی مرکز لوله
+ * @property topHeight ارتفاع لوله بالایی
+ * @property gapHeight ارتفاع فاصله بین دو لوله
+ * @property width عرض لوله
+ * @property scored آیا امتیاز این لوله گرفته شده یا نه
+ */
 data class PipePair(
-    var x: Float,
-    val y: Float,
+    val x: Float,
     val topHeight: Float,
-    val bottomHeight: Float,
-    var scored: Boolean = false
-)
+    val gapHeight: Float,
+    val width: Float,
+    val scored: Boolean = false
+) {
+    /**
+     * پایین شکاف بین دو لوله.
+     */
+    val gapBottom: Float
+        get() = topHeight + gapHeight
+}
