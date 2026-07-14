@@ -1015,6 +1015,6 @@ before public distribution or accepting third-party contributions.
 ## Author
 
 Developed and maintained by  
-[Ali Soleimani](https://github.com/ALISCHILLER).
+[ALISCHILLER](https://github.com/ALISCHILLER).
 
 Issues, gameplay proposals and pull requests are welcome through GitHub.
