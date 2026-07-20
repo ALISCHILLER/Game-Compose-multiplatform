@@ -1,0 +1,55 @@
+package com.msa.compose_kmm.ui
+
+import androidx.compose.ui.graphics.Color
+
+/** Core brand and gameplay palette. All interactive foreground/background pairs meet AA contrast. */
+val GamePrimaryOrange = Color(0xFFB84700)
+val GamePrimaryOrangePressed = Color(0xFF8F3500)
+val GameHoneyYellow = Color(0xFFFFD166)
+val GameHoneyLight = Color(0xFFFFE7A8)
+val GameGoldDeep = Color(0xFF8E5600)
+val GameTextWhite = Color(0xFFFFFFFF)
+val GameTextMuted = Color(0xFFF4E7D2)
+val GameTextSubtle = Color(0xFFD7C4A6)
+
+val GameOverlayBlack = Color(0xC9110905)
+val GameOverlayTop = Color(0xD91A0F08)
+val GameOverlayBottom = Color(0xED090503)
+val GamePanel = Color(0xF522140C)
+val GamePanelElevated = Color(0xFF301B0F)
+val GamePanelSoft = Color(0xE63A2112)
+val GameCardDark = Color(0xF52B180E)
+val GameHudSurface = Color(0xEE24130B)
+val GamePanelBorder = Color(0x99FFE1A3)
+val GamePanelBorderSoft = Color(0x4DFFE1A3)
+val GameSoftShadow = Color(0x73000000)
+
+val GameLeafGreen = Color(0xFF25733A)
+val GameLeafGreenLight = Color(0xFF4FAF68)
+val GameDanger = Color(0xFFC33D32)
+
+val GamePipeDark = Color(0xFF174A22)
+val GamePipeMid = Color(0xFF2E813B)
+val GamePipeLight = Color(0xFF4DAA50)
+val GamePipeHighlight = Color(0xFF9BE37A)
+val GamePipeRim = Color(0xFF0E3518)
+
+val GameSkyTop = Color(0xFF58BCEB)
+val GameSkyMiddle = Color(0xFFBDEBFA)
+val GameSkyBottom = Color(0xFFF1FBFF)
+val GameSun = Color(0xFFFFE08A)
+val GameSunHalo = Color(0x66FFF4C4)
+val GameHillFar = Color(0xFFB7DFA3)
+val GameHillNear = Color(0xFF70B96F)
+val GameHillShadow = Color(0xFF4C9858)
+val GameGrass = Color(0xFF438C45)
+val GameGroundTop = Color(0xFFD79B39)
+val GameGroundMiddle = Color(0xFFB66C27)
+val GameGroundBottom = Color(0xFF7D3F18)
+
+val GameBeeYellow = Color(0xFFFFC928)
+val GameBeeYellowLight = Color(0xFFFFE37A)
+val GameBeeBrown = Color(0xFF4A2A12)
+val GameBeeBrownDark = Color(0xFF261306)
+val GameBeeWing = Color(0xE6FFFFFF)
+val GameBeeCheek = Color(0xFFFF8D72)

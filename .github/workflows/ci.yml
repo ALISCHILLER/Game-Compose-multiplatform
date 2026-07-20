@@ -1,0 +1,224 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-quality-gates:
+    name: Offline structure, security and asset reproducibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: actions/setup-python@efa8de904209196588db1453bdb44079b3c393d7 # v5
+        with:
+          python-version: '3.12'
+      - name: Verify project structure and generated assets
+        run: |
+          python scripts/verify_project.py
+          python scripts/verify_generated_assets.py
+          python scripts/verify_ui.py
+
+  android-and-common:
+    needs: offline-quality-gates
+    name: Android, metadata and common tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: actions/setup-java@0969d5d4288c995edd83fa23bc91e83a2c03ba22 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@2b23091730423deba6728fa9a964726ea09e2cd9 # v3
+      - uses: gradle/actions/setup-gradle@864def28bf3f78138bbe1c563d360930ae4bb909 # v6
+        with:
+          cache-provider: basic
+      - run: chmod +x gradlew
+      - name: Compile, test, lint, APK and AAB
+        run: >-
+          ./gradlew
+          :composeApp:verifyBuildIdentity
+          :composeApp:compileKotlinMetadata
+          :composeApp:jvmTest
+          :composeApp:lintDebug
+          :composeApp:assembleDebug
+          :composeApp:assembleRelease
+          :composeApp:bundleRelease
+          --stacktrace
+          --no-daemon
+      - uses: actions/upload-artifact@2a0ecf19e8d0087dd2e5d1785dcf764811e79fae # v4
+        with:
+          name: android-artifacts
+          path: |
+            composeApp/build/outputs/apk/debug/*.apk
+            composeApp/build/outputs/apk/release/*.apk
+            composeApp/build/outputs/bundle/release/*.aab
+            composeApp/build/reports/tests/**
+            composeApp/build/reports/lint-results-debug.html
+          if-no-files-found: error
+
+  dependency-submission:
+    needs: offline-quality-gates
+    name: Submit Gradle dependency graph
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: actions/setup-java@0969d5d4288c995edd83fa23bc91e83a2c03ba22 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@864def28bf3f78138bbe1c563d360930ae4bb909 # v6
+      - run: chmod +x gradlew
+      - uses: gradle/actions/dependency-submission@864def28bf3f78138bbe1c563d360930ae4bb909 # v6
+
+  android-instrumented:
+    needs: offline-quality-gates
+    name: Android UI and accessibility tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: actions/setup-java@0969d5d4288c995edd83fa23bc91e83a2c03ba22 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@2b23091730423deba6728fa9a964726ea09e2cd9 # v3
+      - uses: gradle/actions/setup-gradle@864def28bf3f78138bbe1c563d360930ae4bb909 # v6
+      - run: chmod +x gradlew
+      - name: Run tests on Android emulator
+        uses: reactivecircus/android-emulator-runner@4f9767ce6c4ecbe37e35cf0c1246ec1c79dfd51a # v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: ./gradlew :composeApp:verifyBuildIdentity :composeApp:connectedDebugAndroidTest --stacktrace --no-daemon
+      - uses: actions/upload-artifact@2a0ecf19e8d0087dd2e5d1785dcf764811e79fae # v4
+        if: always()
+        with:
+          name: android-instrumented-reports
+          path: composeApp/build/reports/androidTests/**
+          if-no-files-found: warn
+
+  desktop:
+    needs: offline-quality-gates
+    name: Desktop package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: actions/setup-java@0969d5d4288c995edd83fa23bc91e83a2c03ba22 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@864def28bf3f78138bbe1c563d360930ae4bb909 # v6
+        with:
+          cache-provider: basic
+      - if: runner.os != 'Windows'
+        run: chmod +x gradlew
+      - name: Test and package Desktop
+        shell: bash
+        run: >-
+          ./gradlew
+          :composeApp:verifyBuildIdentity
+          :composeApp:jvmTest
+          :composeApp:packageReleaseDistributionForCurrentOS
+          --stacktrace
+          --no-daemon
+      - uses: actions/upload-artifact@2a0ecf19e8d0087dd2e5d1785dcf764811e79fae # v4
+        with:
+          name: desktop-${{ runner.os }}
+          path: |
+            composeApp/build/compose/binaries/**/*.deb
+            composeApp/build/compose/binaries/**/*.msi
+            composeApp/build/compose/binaries/**/*.dmg
+          if-no-files-found: error
+
+  web:
+    needs: offline-quality-gates
+    name: JavaScript and Wasm tests/builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: actions/setup-java@0969d5d4288c995edd83fa23bc91e83a2c03ba22 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@864def28bf3f78138bbe1c563d360930ae4bb909 # v6
+        with:
+          cache-provider: basic
+      - run: chmod +x gradlew
+      - name: Test and build browser distributions
+        run: >-
+          ./gradlew
+          :composeApp:verifyBuildIdentity
+          :composeApp:jsBrowserTest
+          :composeApp:wasmJsBrowserTest
+          :composeApp:jsBrowserDistribution
+          :composeApp:wasmJsBrowserDistribution
+          --stacktrace
+          --no-daemon
+      - uses: actions/upload-artifact@2a0ecf19e8d0087dd2e5d1785dcf764811e79fae # v4
+        with:
+          name: web-distributions
+          path: |
+            composeApp/build/dist/js/productionExecutable
+            composeApp/build/dist/wasmJs/productionExecutable
+            composeApp/build/reports/tests/**
+          if-no-files-found: error
+
+  ios:
+    needs: offline-quality-gates
+    name: iOS tests, framework and app integration
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: actions/setup-java@0969d5d4288c995edd83fa23bc91e83a2c03ba22 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@864def28bf3f78138bbe1c563d360930ae4bb909 # v6
+        with:
+          cache-provider: basic
+      - run: chmod +x gradlew
+      - name: Test and link simulator frameworks
+        run: >-
+          ./gradlew
+          :composeApp:verifyBuildIdentity
+          :composeApp:iosSimulatorArm64Test
+          :composeApp:linkDebugFrameworkIosSimulatorArm64
+          :composeApp:linkReleaseFrameworkIosSimulatorArm64
+          :composeApp:linkDebugFrameworkIosX64
+          --stacktrace
+          --no-daemon
+      - name: Build Xcode application integration
+        run: >-
+          xcodebuild
+          -project iosApp/iosApp.xcodeproj
+          -scheme iosApp
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          ARCHS=arm64
+          ONLY_ACTIVE_ARCH=YES
+          CODE_SIGNING_ALLOWED=NO
+          TEAM_ID=
+          build
+      - uses: actions/upload-artifact@2a0ecf19e8d0087dd2e5d1785dcf764811e79fae # v4
+        with:
+          name: ios-test-reports
+          path: composeApp/build/reports/tests/**
+          if-no-files-found: warn

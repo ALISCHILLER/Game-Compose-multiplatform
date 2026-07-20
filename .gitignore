@@ -1,0 +1,36 @@
+*.iml
+.kotlin
+.gradle
+**/build/
+xcuserdata
+local.properties
+.idea
+.DS_Store
+captures
+.externalNativeBuild
+.cxx
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/WorkspaceSettings.xcsettings
+node_modules/
+
+# Local secrets and signing files
+.env
+.env.*
+!.env.example
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+
+# Python verification cache
+__pycache__/
+*.pyc
+google-services.json
+GoogleService-Info.plist
+*.pem
+*.key

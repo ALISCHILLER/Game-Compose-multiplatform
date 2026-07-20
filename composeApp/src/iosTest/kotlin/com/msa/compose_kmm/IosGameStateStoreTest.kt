@@ -1,0 +1,29 @@
+package com.msa.compose_kmm
+
+import com.msa.compose_kmm.data.IosGameStateStore
+import com.msa.compose_kmm.domain.Game
+import com.msa.compose_kmm.domain.SaveDurability
+import kotlin.random.Random
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class IosGameStateStoreTest {
+    @Test
+    fun userDefaultsRoundTripACompleteSnapshot() {
+        val store = IosGameStateStore()
+        store.clear()
+        val game = Game(Random(11)).apply {
+            start()
+            jump()
+            repeat(20) { updateNanos(8_333_333L) }
+        }
+
+        assertTrue(store.save(game.snapshot(), SaveDurability.Immediate))
+
+        assertEquals(game.snapshot(), store.load())
+        assertTrue(store.clear(SaveDurability.Immediate))
+        assertNull(store.load())
+    }
+}

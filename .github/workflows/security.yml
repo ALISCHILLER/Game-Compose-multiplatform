@@ -1,0 +1,62 @@
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: '17 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-security-preflight:
+    name: Offline structure and provenance checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: actions/setup-python@efa8de904209196588db1453bdb44079b3c393d7 # v5
+        with:
+          python-version: '3.12'
+      - name: Verify project and generated assets
+        run: |
+          python scripts/verify_project.py
+          python scripts/verify_generated_assets.py
+          python scripts/verify_ui.py
+
+  dependency-review:
+    needs: offline-security-preflight
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: actions/dependency-review-action@957168159628f3d5dc34dc15f2561cf64f803f5b # v4
+        with:
+          fail-on-severity: high
+
+  codeql:
+    needs: offline-security-preflight
+    name: CodeQL Kotlin
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@6842eb843b7258993656f41f9c358f5c5331fbe7 # v4
+      - uses: github/codeql-action/init@e3268577c704e23cf94ce0bee0793d3206606014 # v3
+        with:
+          languages: java-kotlin
+      - uses: actions/setup-java@0969d5d4288c995edd83fa23bc91e83a2c03ba22 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@2b23091730423deba6728fa9a964726ea09e2cd9 # v3
+      - uses: gradle/actions/setup-gradle@864def28bf3f78138bbe1c563d360930ae4bb909 # v6
+      - run: chmod +x gradlew
+      - name: Build for analysis
+        run: ./gradlew :composeApp:verifyBuildIdentity :composeApp:assembleDebug --no-daemon --stacktrace
+      - uses: github/codeql-action/analyze@e3268577c704e23cf94ce0bee0793d3206606014 # v3
